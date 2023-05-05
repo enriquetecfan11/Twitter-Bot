@@ -97,7 +97,14 @@ def chek_mentions():
 if __name__ == "__main__":
     # send_tweet('Madrid, ES') # Este envia tweets
     get_current_weather("Madrid")  # Este chekea las menciones
+    # chek_mentions()  # Este solo para las menciones
 
-    chek_mentions()  # Este solo para las menciones
-    time.sleep(10)
-    chek_mentions()
+    # hace un control c
+    while True:
+        try:
+            chek_mentions()
+            time.sleep(10)
+            break
+        except KeyboardInterrupt:
+            print("Adios")
+
