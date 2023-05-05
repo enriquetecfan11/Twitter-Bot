@@ -32,12 +32,16 @@ def get_current_weather(location):
 
     weather_data = json.loads(response.text)
 
-    print(f"El clima actual en {location} es de {weather_data['main']['temp']} grados Celsius y {weather_data['weather'][0]['description']}")
+    # Solo se envia la temperatura
+    weather_send = weather_data['main']['temp']
 
-    return weather_data
+    print("weather_send", weather_send)
+    return weather_send
 
-# Ejemplo de uso
-print(get_current_weather('Madrid, ES'))
+    # print(f"El clima actual en {location} es de {weather_data['main']['temp']} grados Celsius y {weather_data['weather'][0]['description']}")
+
+    # return weather_data
+
 
 # Función para enviar un tweet con la información del clima
 def send_tweet(location):
@@ -51,17 +55,16 @@ def send_tweet(location):
     api.update_status(tweet_text)
 
 
-# Bucle principal
-while True:
+def chek_mentions():
+  while True:
     # Buscar tweets que mencionan al bot y responder a ellos
     # print("Esperando menciones....")
 
     mentions = api.mentions_timeline()
-    #print(mentions)
-
     # Chek if one user or oder metion @TecfanBot
     for mention in mentions:
-        if '@TecfanBot' in mention.text:
+        print(mention.user.screen_name + mention.text)
+        if '@TecfanBot' or '@tecfanbot' in mention.text:
             # Obtener el nombre de usuario de la persona que nos mencionó
             screen_name = mention.user.screen_name
 
@@ -80,13 +83,12 @@ while True:
                 location = location.split()[0]
                 print(location)
 
-                # Enviar un tweet con la información del clima
-                send_tweet(location)
+                # Responder al tweet -> Hola @user, el tiempo en tu (location) es get_current_weather(location)
+                api.update_status(f"Hola @{screen_name}, el tiempo en {location} es {get_current_weather(location)}")
+                print(f"Tweet: ", f"Hola @{screen_name}, el tiempo en {location} es {get_current_weather(location)}" )
 
-                # Responder al tweet
-                api.update_status(f"Hola, @{screen_name}! Aquí tienes la información del clima en {location}!")
-
-        time.sleep(60)  # Esperar 1 minuto antes de revisar las menciones nuevamente
-
-
+if __name__ == "__main__":
+    chek_mentions() # Este solo para las menciones
+    # send_tweet('Madrid, ES') # Este envia tweets
+    get_current_weather('Madrid, ES') #Este chekea las menciones
 
