@@ -1,21 +1,20 @@
-FROM python:3.9-alpine
+FROM alpine:latest
 
-WORKDIR /app
-
-# Instalar cron
-RUN apk add --no-cache dcron
+# Actualizamos la distro alpine y luego instalamos python3
+RUN apk update && apk add --no-cache python3 python3-dev py3-pip build-base
 
 # Instalar dependencias
-RUN pip install tweepy requests python-dotenv
+RUN pip3 install tweepy requests python-dotenv
 
 # Copiar archivos
+WORKDIR /app
 COPY . .
 
-# Agregar script de configuración cron
-RUN echo "0 */2 * * * python /app/main.py >> /var/log/cron.log 2>&1" >> /etc/crontabs/root
+# Correr por primera vez el bot
+RUN python3 /app/main.py
 
-# Cargar variables de entorno desde el archivo .env
-ENV $(cat .env | xargs)
+# Agregar script de configuración cron
+RUN echo "*/15 * * * * python3 /app/main.py >> /var/log/cron.log 2>&1" >> /etc/crontabs/root
 
 # Ejecutar cron en primer plano
 CMD ["crond", "-f", "-d", "8"]

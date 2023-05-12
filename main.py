@@ -5,6 +5,10 @@ import os
 from dotenv import load_dotenv
 import logging
 import time
+import sys
+import schedule
+import functools
+
 
 load_dotenv()
 logging.basicConfig(filename="bot.log", level=logging.INFO)
@@ -25,86 +29,124 @@ api = tweepy.API(auth)
 weather_api_url = "https://api.openweathermap.org/data/2.5/weather"
 
 
+# Función para saber si el bot está vivo
+def is_alive():
+    # Enviamos un simple tweet: "Hola, estoy vivo. Son las (hora de España)"
+    tweet = f"Hola, estoy vivo. Son las {time.strftime('%H:%M:%S')}"
+    # Publicar el tweet
+    api.update_status(status=tweet)
+    logging.info(f"Tweet publicado: {tweet}")
+
+
 # Función para obtener el clima actual
 def get_current_weather(location):
     # Parámetros de la consulta
     params = {"q": location, "appid": os.getenv("WEATHER_API_KEY"), "units": "metric"}
     response = requests.get(weather_api_url, params=params)
-    weather_data = json.loads(response.text)
+    weather_data = response.json()
 
-    # Solo se envia la temperatura
-    weather_send = weather_data["main"]["temp"]
+    # Obtener los datos del clima
+    weather = weather_data["weather"][0]["description"]
 
-    print("weather_send", weather_send, "ºC")
-    return weather_send
+    # Obtener los datos de la temperatura
+    temp = weather_data["main"]["temp"]
+
+    # Obtener los datos de la humedad
+    humidity = weather_data["main"]["humidity"]
+
+    # Obtener los datos de la presión
+    pressure = weather_data["main"]["pressure"]
+
+    # Obtener los datos de la velocidad del viento
+    wind_speed = weather_data["wind"]["speed"]
+
+    # Obtener los datos de la dirección del viento
+    wind_direction = weather_data["wind"]["deg"]
+
+    # Obtener los datos de la visibilidad
+    visibility = weather_data["visibility"]
+
+    # Mensaje para enviar
+    sendMessage = f"El clima actual en {location} es de {temp} ºC y {weather}, la humedad es de {humidity} %, la presión es de {pressure} hPa, la velocidad del viento es de {wind_speed} m/s, la dirección del viento es de {wind_direction} grados, la visibilidad es de {visibility} m"
+    print(sendMessage)
+
+    return temp, humidity, pressure, wind_speed
 
 
 # Función para enviar un tweet con la información del clima
 def send_tweet(location):
     # Obtener información del clima
-    weather_data = get_current_weather(location)
+    temp, humidity, pressure, wind_speed = get_current_weather(location)
 
-    # Formatear el tweet
-    tweet_text = f"El clima actual en {location} es de {weather_data['main']['temp']} grados Celsius y {weather_data['weather'][0]['description']}"
+    # Formatear el tweet + la hora es UTC +2
+    tweet_text = f"""El clima actual en {location} es de {temp} ºC, la humedad es de {humidity} %, la presión es de {pressure} hPa, la velocidad del viento es de {wind_speed} m/s y son las """ + time.strftime("%H:%M:%S")
+
 
     # Publicar el tweet
     api.update_status(tweet_text)
+    print("Tweet enviado:", tweet_text)
 
 
-def chek_mentions():
+# Función para responder a menciones y proporcionar información del clima
+def respond_to_mentions():
     while True:
         mentions = api.mentions_timeline()
         for mention in mentions:
-            # print(mention.text, mention.user.screen_name)
-
             # Verificar si el tweet ya ha sido respondido
             if mention.in_reply_to_status_id is not None:
                 logging.info("Tweet ya respondido")
-                # print("Tweet ya respondido")
-                break
+                continue
 
-            # Si cualquier tweet esta marcado como me gusta no se hace nada
+            # Si el tweet está marcado como me gusta, no se hace nada
             if mention.favorited:
                 logging.info("Tweet ya marcado como me gusta")
-                # si el tweet esta marcado como me gusta sale del programa
-                break
+                continue
+
             if "@tecfanbot" or "@TecfanBot" in mention.text.lower():
-                logging.info("Tiene una mencion")
+                # Obtener el nombre de usuario
+                username = mention.user.screen_name
 
-                screen_name = mention.user.screen_name
-                tweet_text = mention.text
-
-                location = tweet_text.split("tiempo en ")[1].strip()
+                # Obtener la localización
+                location = mention.text.split("tiempo en ")[1]
                 print(location)
 
                 # Obtener información del clima
-                weather_data = get_current_weather(location)
+                temp = get_current_weather(location)
 
                 # Formatear el tweet
-                tweet_text = f"@{screen_name} El clima actual en {location} es de {weather_data} ºC"
+                tweet_text = f""" Hola @{username} el clima actual en {location} es de {temp} ºC y son las """ + time.strftime("%H:%M:%S")
 
                 # Publicar el tweet
-                api.update_status(tweet_text)
+                api.update_status(status=tweet_text, in_reply_to_status_id=mention.id)
+                logging.info(f"Tweet publicado: {tweet_text}")
 
-                # Marca el tweet de la mencion como me gusta
+                # Marcar el tweet como me gusta
                 api.create_favorite(mention.id)
+                logging.info("Tweet marcado como me gusta")
 
-                logging.info("Se ha enviado un tweet")
-                print("Se ha enviado un tweet")
+                # Romper el bucle
                 break
 
 
+
+def send_tweet_wrapper():
+    send_tweet("Madrid, ES")
+
 if __name__ == "__main__":
-    # send_tweet('Madrid, ES') # Este envia tweets
-    get_current_weather("Madrid")  # Este chekea las menciones
-    # chek_mentions()  # Este solo para las menciones
+    schedule.every().hour.do(send_tweet_wrapper)
 
-    # hace un control c
+    # Configurar el tiempo máximo de ejecución (1 minuto = 60 segundos)
+    tiempo_maximo = 20  # Tiempo máximo en segundos
+    tiempo_inicial = time.time()
+
+    # Ejecutar el bot continuamente
     while True:
-        try:
-            chek_mentions()
-            time.sleep(10)
-            break
-        except KeyboardInterrupt:
-            print("Adios")
+        schedule.run_pending()
+        respond_to_mentions()
 
+        # Verificar si ha pasado el tiempo máximo permitido
+        tiempo_actual = time.time()
+
+        tiempo_transcurrido = tiempo_actual - tiempo_inicial
+        if tiempo_transcurrido > tiempo_maximo:
+            break
